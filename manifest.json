@@ -1,12 +1,12 @@
 {
-  "id": "/ecodata-zento-V5-PWA-v6/",
+  "id": "./ecodata-zento-v6",
   "name": "Toyota ZENTO · EcoData",
   "short_name": "EcoData",
   "description": "Registro de pesajes y gestión de sucursales de EcoData Zento.",
   "lang": "es-AR",
   "dir": "ltr",
-  "start_url": "/ecodata-zento-V5-PWA/",
-  "scope": "/ecodata-zento-V5-PWA/",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "display_override": [
     "standalone",

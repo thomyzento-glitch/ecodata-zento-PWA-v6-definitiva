@@ -1,5 +1,5 @@
-const CACHE_NAME = "ecodata-zento-v6";
-const BASE = "./";
+/* EcoData Zento PWA - Service Worker v6 para GitHub Pages */
+const CACHE_NAME = "ecodata-zento-v6-github-pages";
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -23,48 +23,70 @@ self.addEventListener("install", event => {
 self.addEventListener("activate", event => {
   event.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k))))
+      .then(keys => Promise.all(
+        keys
+          .filter(key => key !== CACHE_NAME)
+          .map(key => caches.delete(key))
+      ))
       .then(() => self.clients.claim())
-      .then(() => self.clients.matchAll({type: "window", includeUncontrolled: true}))
-      .then(clients => clients.forEach(client => client.postMessage({type: "APP_UPDATED", version: "v6"})))
+      .then(() => self.clients.matchAll({ type: "window", includeUncontrolled: true }))
+      .then(clients => {
+        clients.forEach(client => {
+          client.postMessage({ type: "APP_UPDATED", version: "v6" });
+        });
+      })
   );
 });
 
-function isCore(request) {
-  const p = new URL(request.url).pathname;
-  return /\/(index\.html|style\.css|app\.js|manifest\.json|service-worker-v6\.js)$/.test(p);
+function isSameOrigin(request) {
+  return new URL(request.url).origin === self.location.origin;
+}
+
+function isCoreFile(request) {
+  const pathname = new URL(request.url).pathname;
+  return /\/(index\.html|style\.css|app\.js|manifest\.json|service-worker-v6\.js)$/.test(pathname);
+}
+
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request, { cache: "no-store" });
+    if (response && response.ok) {
+      const cache = await caches.open(CACHE_NAME);
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch (_) {
+    const cached = await caches.match(request);
+    if (cached) return cached;
+
+    if (request.mode === "navigate") {
+      return caches.match("./index.html");
+    }
+
+    throw _;
+  }
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+
+  const response = await fetch(request);
+  if (response && response.ok) {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(request, response.clone());
+  }
+  return response;
 }
 
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
-  const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) return;
+  if (!isSameOrigin(event.request)) return;
 
-  if (event.request.mode === "navigate" || isCore(event.request)) {
-    event.respondWith(
-      fetch(event.request, {cache: "no-store"})
-        .then(response => {
-          if (response && response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request).then(r => r || caches.match("./index.html")))
-    );
+  if (event.request.mode === "navigate" || isCoreFile(event.request)) {
+    event.respondWith(networkFirst(event.request));
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(response => {
-        if (response && response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-        }
-        return response;
-      });
-    })
-  );
+  event.respondWith(cacheFirst(event.request));
 });
